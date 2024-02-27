@@ -1,1 +1,5 @@
 __pycache__/
+dist/
+dschemadiff.egg-info/
+*.pyc
+

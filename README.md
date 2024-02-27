@@ -41,7 +41,7 @@ CREATE TABLE tbl (
 Usage
 -----
 ```
-$ python schema_diff.py data/schema1.db data/schema2.sql 
+$ python -m schema_diff data/schema1.db data/schema2.sql 
 Existing Database: data/schema1.db (to modify)
 Target Schema: data/schema2.sql
 Calculated Changes:
