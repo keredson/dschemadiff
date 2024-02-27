@@ -1,4 +1,4 @@
-schema_diff
+dschemadiff
 ===========
 
 This is a schema diff tool.  It will calculate the schema changes between two databases or `.sql` files, and optionally apply them.
@@ -38,10 +38,16 @@ CREATE TABLE tbl (
 );
 ```
 
+Install
+-------
+```
+$ pip install dschemadiff
+```
+
 Usage
 -----
 ```
-$ python -m schema_diff data/schema1.db data/schema2.sql 
+$ python -m dschemadiff data/schema1.db data/schema2.sql 
 Existing Database: data/schema1.db (to modify)
 Target Schema: data/schema2.sql
 Calculated Changes:
@@ -57,10 +63,10 @@ Success!
 ```
 
 ```
-$ python schema_diff.py 
+$ python dschemadiff.py 
 Schema Diff Tool
-schema_diff() missing 2 required positional arguments: 'existing_db' and 'schema_sql'
-usage: python schema_diff.py <existing_db> <schema_sql> [--dry_run <bool>] [--skip_test_run <bool>] [--confirm <bool>] [--quiet <bool>]
+dschemadiff() missing 2 required positional arguments: 'existing_db' and 'schema_sql'
+usage: python dschemadiff.py <existing_db> <schema_sql> [--dry_run <bool>] [--skip_test_run <bool>] [--confirm <bool>] [--quiet <bool>]
 ```
 
 
