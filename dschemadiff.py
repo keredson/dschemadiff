@@ -128,6 +128,8 @@ def _get_tables(db):
   tbls = [Table(*row, {}, set(), {}) for row in rows]
   for tbl in tbls:
     create_token = [token for token in sqlparse.parse(tbl.sql)[0].tokens if isinstance(token, sqlparse.sql.Parenthesis)][0]
+    _fix_primary_key_identifier_list_bug(create_token)
+    _fix_unique_identifier_list_bug(create_token)
     
     # find comments
     comments_by_identifier = collections.defaultdict(list)
@@ -183,6 +185,7 @@ def _add_column(tbl_name, column):
     cmds.append('-- WARNING: adding a not null column without a default value will fail if there is any data in the table')
   col_def = ''.join([token.value for token in column.tokens])
   col_def = re.compile(' primary key', re.IGNORECASE).sub('', col_def)
+  col_def = re.compile(' unique', re.IGNORECASE).sub('', col_def)
   cmds.append(f'ALTER TABLE "{tbl_name}" ADD COLUMN {col_def}')
   return cmds
 
@@ -231,6 +234,29 @@ def dschemadiff(existing_db, schema_sql, dry_run:bool=False, skip_test_run:bool=
     if not quiet:
       print('Success!')
         
+def _fix_primary_key_identifier_list_bug(token):
+  # see: https://github.com/andialbrecht/sqlparse/issues/740
+  idx = token.token_next_by(idx=0, m=(sqlparse.tokens.Keyword, 'primary'))[0]
+  if idx is None: return
+  idx += 1
+  while repr(token.tokens[idx]).startswith('<Whitespace'):
+   idx += 1
+  if isinstance(token.tokens[idx], sqlparse.sql.IdentifierList):
+    print(token.tokens[idx], token.tokens[idx].__class__)
+    print(token.tokens[idx])
+    il = token.tokens[idx]
+    token.tokens = token.tokens[:idx] + il.tokens + token.tokens[idx+1:]
+    print(token.tokens)
+    
+def _fix_unique_identifier_list_bug(token):
+  # see: https://github.com/andialbrecht/sqlparse/issues/740
+  idx = 0
+  while il := token.token_matching(lambda t: repr(t).startswith("<IdentifierList 'unique"), idx):
+    idx = token.token_index(il)
+    token.tokens = token.tokens[:idx] + il.tokens + token.tokens[idx+1:]
+    print(token.tokens)
+    
+
 
 if __name__=='__main__':
   try:

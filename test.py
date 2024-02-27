@@ -62,6 +62,27 @@ def test_add_column():
     'ALTER TABLE "tbl" ADD COLUMN b text'
   ]
 
+def test_add_column_to_table_with_pk():
+  # because of https://github.com/andialbrecht/sqlparse/issues/740
+  assert diff(
+    'create table tbl (a text primary key)',
+    'create table tbl (a text primary key, b text)',
+    apply=True
+  ) == [
+    'ALTER TABLE "tbl" ADD COLUMN b text'
+  ]
+
+def test_add_column_to_multiple_uniques():
+  # because of https://github.com/andialbrecht/sqlparse/issues/740
+  assert diff(
+    'create table tbl (a text unique)',
+    'create table tbl (a text unique, b text unique)',
+    apply=True
+  ) == [
+    'ALTER TABLE "tbl" ADD COLUMN b text',
+    'CREATE UNIQUE INDEX unique_index_2 ON tbl("b")'
+  ]
+
 def test_add_pk():
   assert diff(
     'create table tbl (a text)',
