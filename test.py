@@ -1,5 +1,5 @@
 import pytest, sqlite3
-from dschemadiff import diff
+from dschemadiff import diff, _parse_create_table
 
 
 def test_add_table():
@@ -339,7 +339,155 @@ def test_drop_unique():
       'DROP INDEX sqlite_autoindex_tbl_1'
     ]
 
+def test_parse_create_table():
+  tbl_stmt, column_defs, tbl_constraints, tbl_options = _parse_create_table('''
+    create table tbl_name (
+      id text primary key,
+      some_other_id text,
+      amount real,
+      "final" bool default(false),
+      now text default(datetime()),
+      foreign key(some_other_id) references some_other_tbl(id)
+    ) STRICT;
+  ''')
+  assert tbl_stmt == 'create table tbl_name'
+  assert column_defs == [
+    'id text primary key', 
+    'some_other_id text', 
+    'amount real', 
+    '"final" bool default(false)', 
+    'now text default(datetime())'
+  ]
+  assert [cd.identifier for cd in column_defs] == ['id','some_other_id','amount','final','now']
+  assert tbl_constraints == ['foreign key(some_other_id) references some_other_tbl(id)']
+  assert tbl_options == 'strict'
 
+def test_parse_create_table_with_comment():
+  tbl_stmt, column_defs, tbl_constraints, tbl_options = _parse_create_table('''
+    create table tbl_name (
+      id text primary key,
+      amount real, -- aka[ammount] (misspelled)
+      something_else bool
+    )
+  ''')
+  assert tbl_stmt == 'create table tbl_name'
+  assert column_defs == [
+    'id text primary key', 
+    'amount real', 
+    'something_else bool', 
+  ]
+  assert [cd.identifier for cd in column_defs] == ['id','amount','something_else']
+  assert column_defs[1].comments == ['aka[ammount] (misspelled)']
+  assert tbl_constraints == []
+  assert tbl_options == ''
+
+def test_parse_create_table_with_comments():
+  tbl_stmt, column_defs, tbl_constraints, tbl_options = _parse_create_table('''
+    create table tbl_name (
+      id text primary key,
+      amount real, -- aka[ammount]
+      something_else bool -- aka[old_something_else]
+    )
+  ''')
+  assert tbl_stmt == 'create table tbl_name'
+  assert column_defs == [
+    'id text primary key', 
+    'amount real', 
+    'something_else bool', 
+  ]
+  assert [cd.identifier for cd in column_defs] == ['id','amount','something_else']
+  assert [cd.comments for cd in column_defs] == [[],['aka[ammount]'],['aka[old_something_else]']]
+  assert tbl_constraints == []
+  assert tbl_options == ''
+
+def test_parse_create_table_with_table_comment():
+  tbl_stmt, column_defs, tbl_constraints, tbl_options = _parse_create_table('''
+    create table tbl_name ( -- aka[tbbl_name]
+      id text primary key
+    )
+  ''')
+  assert tbl_stmt == 'create table tbl_name'
+  assert tbl_stmt.comments == ['aka[tbbl_name]']
+  assert column_defs == ['id text primary key']
+  assert tbl_constraints == []
+  assert tbl_options == ''
+
+def test_parse_create_table_with_table_comment2():
+  tbl_stmt, column_defs, tbl_constraints, tbl_options = _parse_create_table('''
+    create table tbl_name -- aka[tbbl_name]
+    (
+      id text primary key
+    )
+  ''')
+  assert tbl_stmt == 'create table tbl_name'
+  assert tbl_stmt.comments == ['aka[tbbl_name]']
+  assert column_defs == ['id text primary key']
+  assert tbl_constraints == []
+  assert tbl_options == ''
+
+def test_parse_create_table_with_inner_comment():
+  tbl_stmt, column_defs, tbl_constraints, tbl_options = _parse_create_table('''
+    create table tbl_name (
+      id text primary key,
+      amount real(
+        -- aka[ammount] (misspelled)
+      ),
+      something_else bool
+    )
+  ''')
+  assert tbl_stmt == 'create table tbl_name'
+  assert column_defs == [
+    'id text primary key', 
+    'amount real(\n              )', 
+    'something_else bool', 
+  ]
+  assert column_defs[1].comments == ['aka[ammount] (misspelled)']
+  assert tbl_constraints == []
+  assert tbl_options == ''
+
+def test_add_table2():
+  assert diff(
+    '',
+    '''
+      create table tbl (
+        id text primary key,
+        other_id text,
+        amount real,
+        final bool default(false),
+        now text default(datetime()),
+        foreign key(other_id) references other(id)
+      );
+    ''',
+    apply=True
+  ) == [
+    '''CREATE TABLE tbl (
+        id text primary key,
+        other_id text,
+        amount real,
+        final bool default(false),
+        now text default(datetime()),
+        foreign key(other_id) references other(id)
+      )'''
+  ]
+
+def test_json_column():
+  assert diff(
+    'create table tbl (a json)',
+    'create table tbl (a json)',
+    apply=True
+  ) == []
+
+def test_change_text_to_json():
+  assert diff(
+    'create table tbl (a text)',
+    'create table tbl (a json)',
+    apply=True
+  ) == [
+    'ALTER TABLE "tbl" RENAME COLUMN "a" TO __dschemadiff_tmp__',
+    'ALTER TABLE "tbl" ADD COLUMN a json',
+    'UPDATE "tbl" SET "a" = CAST(__dschemadiff_tmp__ as json)',
+    'ALTER TABLE "tbl" DROP COLUMN __dschemadiff_tmp__',
+  ]
 
 
 

@@ -5,7 +5,7 @@ import darp
 
 
 Table = collections.namedtuple('Table', 'name,tbl_name,rootpage,sql,columns,akas,unique_constraints')
-Column = collections.namedtuple('Column', 'cid,name,type,notnull,dflt_value,pk,tokens,akas')
+Column = collections.namedtuple('Column', 'cid,name,type,notnull,dflt_value,pk,col_def,akas')
 View = collections.namedtuple('View', 'name,tbl_name,rootpage,sql')
 
 AKA_RE = re.compile(r'AKA\[([A-Za-z0-9_, ]*)\]', re.IGNORECASE)
@@ -127,49 +127,30 @@ def _get_tables(db):
   rows = db.execute("select name,tbl_name,rootpage,sql from sqlite_schema where type='table';").fetchall()
   tbls = [Table(*row, {}, set(), {}) for row in rows]
   for tbl in tbls:
-    create_token = [token for token in sqlparse.parse(tbl.sql)[0].tokens if isinstance(token, sqlparse.sql.Parenthesis)][0]
-    _fix_primary_key_identifier_list_bug(create_token)
-    _fix_unique_identifier_list_bug(create_token)
+    tbl_stmt, column_defs, tbl_constraints, tbl_options = _parse_create_table(tbl.sql)
     
     # find comments
     comments_by_identifier = collections.defaultdict(list)
-    idx = 0
-    last_identifier = None
-    while token := create_token.token_matching(lambda t: isinstance(t,sqlparse.sql.Identifier) or isinstance(t,sqlparse.sql.Comment), idx):
-      if isinstance(token,sqlparse.sql.Identifier):
-        last_identifier = token.value
-      if isinstance(token,sqlparse.sql.Comment):
-        comments_by_identifier[last_identifier].append(token)
-      idx = create_token.token_index(token) + 1
+    for col in column_defs:
+      comments_by_identifier[col.identifier] = col.comments
     
     # find table akas
-    for comment in comments_by_identifier[None]:
-      if match := AKA_RE.search(comment.value):
+    for comment in tbl_stmt.comments:
+      if match := AKA_RE.search(comment):
         tbl.akas.update([s.strip() for s in match.group(1).split(',')])
         break
-      
-    tokens_by_column_name = {}
-    idx = 0
-    while idx < len(create_token.tokens):
-      next_idx = create_token.token_next_by(idx=idx, m=(sqlparse.tokens.Punctuation, ','))[0] or len(create_token.tokens)
-      tokens_for_col = create_token.tokens[idx:next_idx]
-      while tokens_for_col and (repr(tokens_for_col[0]).startswith('<Punctuation') or repr(tokens_for_col[0]).startswith('<Whitespace') or repr(tokens_for_col[0]).startswith('<Newline') or repr(tokens_for_col[0]).startswith('<Comment')):
-        tokens_for_col = tokens_for_col[1:]
-      while tokens_for_col and (repr(tokens_for_col[-1]).startswith('<Punctuation') or repr(tokens_for_col[-1]).startswith('<Whitespace') or repr(tokens_for_col[-1]).startswith('<Newline') or repr(tokens_for_col[-1]).startswith('<Comment')):
-        tokens_for_col = tokens_for_col[:-1]
-      column_name = tokens_for_col[0].get_real_name() if tokens_for_col and isinstance(tokens_for_col[0],sqlparse.sql.Identifier) else None
-      tokens_by_column_name[column_name] = tokens_for_col
-      idx = next_idx
+    
+    col_def_by_column_name = {col_def.identifier:col_def for col_def in column_defs}
       
     for row in db.execute(f'select * from pragma_table_info("{tbl.name}");').fetchall():
       # row: cid,name,type,notnull,dflt_value,pk
       name = row[1]
-      tokens = tokens_by_column_name[name]
+      col_def = col_def_by_column_name[name]
       akas = set()
       for comment in comments_by_identifier[name]:
-        if match := AKA_RE.search(comment.value):
+        if match := AKA_RE.search(comment):
           akas.update([s.strip() for s in match.group(1).split(',')])
-      column = Column(*row, tokens, akas)
+      column = Column(*row, col_def, akas)
       tbl.columns[column.name] = column
 
     for row in db.execute(f'select name from pragma_index_list("{tbl.name}") where "unique";').fetchall():
@@ -183,7 +164,7 @@ def _add_column(tbl_name, column):
   cmds = []
   if column.notnull and not column.dflt_value:
     cmds.append('-- WARNING: adding a not null column without a default value will fail if there is any data in the table')
-  col_def = ''.join([token.value for token in column.tokens])
+  col_def = column.col_def
   col_def = re.compile(' primary key', re.IGNORECASE).sub('', col_def)
   col_def = re.compile(' unique', re.IGNORECASE).sub('', col_def)
   cmds.append(f'ALTER TABLE "{tbl_name}" ADD COLUMN {col_def}')
@@ -234,29 +215,104 @@ def dschemadiff(existing_db, schema_sql, dry_run:bool=False, skip_test_run:bool=
     if not quiet:
       print('Success!')
         
-def _fix_primary_key_identifier_list_bug(token):
-  # see: https://github.com/andialbrecht/sqlparse/issues/740
-  idx = token.token_next_by(idx=0, m=(sqlparse.tokens.Keyword, 'primary'))[0]
-  if idx is None: return
-  idx += 1
-  while repr(token.tokens[idx]).startswith('<Whitespace'):
-   idx += 1
-  if isinstance(token.tokens[idx], sqlparse.sql.IdentifierList):
-    print(token.tokens[idx], token.tokens[idx].__class__)
-    print(token.tokens[idx])
-    il = token.tokens[idx]
-    token.tokens = token.tokens[:idx] + il.tokens + token.tokens[idx+1:]
-    print(token.tokens)
-    
-def _fix_unique_identifier_list_bug(token):
-  # see: https://github.com/andialbrecht/sqlparse/issues/740
-  idx = 0
-  while il := token.token_matching(lambda t: repr(t).startswith("<IdentifierList 'unique"), idx):
-    idx = token.token_index(il)
-    token.tokens = token.tokens[:idx] + il.tokens + token.tokens[idx+1:]
-    print(token.tokens)
-    
 
+class SQLPart(str):
+  def __new__(cls, s):
+    o = str.__new__(cls, s)
+    o.comments = []
+    o.identifier = None
+    return o
+  
+
+def _parse_create_table(sql):
+  sql = sql.lower().strip()
+  parts = sql.split('(', 1)
+  if len(parts)!=2:
+    if ' as ' in parts[0]:
+      print('AS not supported, skipping:', parts.split('\n')[0].strip())
+      return
+    raise RuntimeError(f'not a table definition: {sql}')
+  tbl_stmt, rest = parts
+  tbl_stmt_parts = tbl_stmt.split('--', 1)
+  tbl_stmt = SQLPart(tbl_stmt_parts[0].strip())
+  if len(tbl_stmt_parts)==2:
+    tbl_stmt.comments.append(tbl_stmt_parts[1].strip())
+  parts = rest.rsplit(')',1)
+  rest, tbl_options = parts if len(parts)==2 else (rest, '')
+  column_defs, tbl_constraints = _parse_table_def(tbl_stmt, rest)
+  return tbl_stmt, column_defs, tbl_constraints, tbl_options.strip().rstrip(';').strip()
+
+
+def _parse_table_def(tbl_stmt, sql):
+  column_defs, tbl_constraints = [], []
+  for part in _parse_table_def_parts(sql):
+    if part.startswith('--'):
+      tbl_stmt.comments.append(part[2:].strip())
+    elif part.split()[0] in ('constraint','primary','unique','check','foreign'):
+      tbl_constraints.append(part)
+    else:
+      column_defs.append(part)
+  return column_defs, tbl_constraints
+
+def _parse_table_def_parts(sql):
+  stack = []
+  end = 0
+  i = -1
+  part = None
+  parts = []
+  inner_comments = []
+  identifier = None
+  comments = []
+  while i < len(sql)-1:
+    i += 1
+    c = sql[i]
+    if c==',' and not stack:
+      part = SQLPart(sql[end:i].strip())
+      part.comments += inner_comments + comments
+      part.identifier = identifier
+      identifier = None
+      inner_comments = []
+      comments = []
+      parts.append(part)
+      end = i+1
+      continue
+    if c=='-':
+      if stack and stack[-1]=='-':
+        comment = sql[i-1:sql.index('\n',i)].strip()
+        if len(stack) > 1: inner_comments.append(comment[2:].strip())
+        elif identifier: comments.append(comment[2:].strip())
+        elif part: part.comments.append(comment[2:].strip())
+        else: parts.append(comment)
+        stack.pop()
+        sql = sql[:i-1] + sql[sql.index('\n',i)+1:]
+        continue
+      else:
+        stack.append(c)
+      continue
+    if c=='(':
+      stack.append(c)
+      continue
+    if c==')' and stack[-1]=='(':
+      stack.pop()
+      continue
+    if c=='"':
+      if stack and stack[-1]=='"':
+        stack.pop()
+        continue
+      else:
+        stack.append(c)
+        continue
+    if c==' ' and not stack and not identifier:
+      identifier = sql[end:i].strip().strip('"').strip()
+      continue
+  part = SQLPart(sql[end:].strip())
+  part.identifier = identifier
+  part.comments += inner_comments + comments
+  parts.append(part)
+  return parts      
+      
+    
+  
 
 if __name__=='__main__':
   try:
