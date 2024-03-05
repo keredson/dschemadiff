@@ -1,6 +1,6 @@
 [project]
-name = "dschemadiff"
-version = "0.2.0"
+name = "schema-evolve"
+version = "0.3.0"
 authors = [
   { name="Derek Anderson", email="public@kered.org" },
 ]
@@ -18,5 +18,5 @@ Homepage = "https://github.com/keredson/dschemadiff"
 Issues = "https://github.com/keredson/dschemadiff/issues"
 
 [tool.setuptools]
-py-modules = ["dschemadiff"]
+py-modules = ["schema_evolve"]
 

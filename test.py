@@ -1,5 +1,5 @@
 import pytest, sqlite3
-from dschemadiff import diff, _parse_create_table
+from schema_evolve import diff, _parse_create_table
 
 
 def test_add_table():

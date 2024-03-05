@@ -105,7 +105,7 @@ def diff(fn1, fn2, apply=False):
     for constraint_columns in sorted(set(tbl2.unique_constraints.values()) - set(tbl1.unique_constraints.values())):
       constraint_name = 'unique_index_%i' % len(tbl2.unique_constraints)
       constraint_columns_sql = ','.join(['"%s"'%s for s in constraint_columns])
-      cmds.append(f'CREATE UNIQUE INDEX {constraint_name} ON tbl({constraint_columns_sql})')
+      cmds.append(f'CREATE UNIQUE INDEX {constraint_name} ON {tbl_name}({constraint_columns_sql})')
 
   # add view
   for view_name in sorted(views2.keys() - views1.keys()):
@@ -171,8 +171,9 @@ def _add_column(tbl_name, column):
   return cmds
 
 
-def dschemadiff(existing_db, schema_sql, dry_run:bool=False, skip_test_run:bool=False, confirm:bool=True, quiet:bool=False):
+def schema_evolve(existing_db, schema_sql, dry_run:bool=True, skip_dry_run:bool=False, apply:bool=False, confirm:bool=True, quiet:bool=False):
   '''Schema Diff Tool'''
+  
   if not quiet:
     print('Existing Database:', existing_db, '(to modify)')
     print('Target Schema:', schema_sql)
@@ -184,13 +185,13 @@ def dschemadiff(existing_db, schema_sql, dry_run:bool=False, skip_test_run:bool=
     print('Calculated Changes:')
     for change in changes:
       print(' ', change+';')
-  while True:
-    v = input('Apply changes? (y/n) ')
-    if v=='n': sys.exit(1)
-    if v=='y': break
   
-  if not skip_test_run:
+  if dry_run and not skip_dry_run:
     tmp_db = os.path.join(tempfile.mkdtemp(), 'test.db')
+    while True:
+      v = input('Apply changes (dry run @ %s)? (y/n) ' % tmp_db)
+      if v=='n': sys.exit(1)
+      if v=='y': break
     if not quiet:
       print('Starting Test Run:', tmp_db)
     shutil.copyfile(existing_db, tmp_db)
@@ -200,7 +201,15 @@ def dschemadiff(existing_db, schema_sql, dry_run:bool=False, skip_test_run:bool=
           print(' ', change+';')
         db.execute(change)
     if not quiet:
-      print('Success!')
+      print('Successful dry run!')
+    os.remove(tmp_db)
+
+  if apply:
+    while True:
+      v = input('Apply changes for real (%s)? (y/n) ' % existing_db)
+      if v=='n': sys.exit(1)
+      if v=='y': break
+    # actual run
       print('Starting Actual Run:', existing_db)
       print('  in:', end=' ', flush=True)
       for i in range(5,0,-1):
@@ -316,7 +325,7 @@ def _parse_table_def_parts(sql):
 
 if __name__=='__main__':
   try:
-    darp.prep(dschemadiff).run()
+    darp.prep(schema_evolve).run()
   except KeyboardInterrupt:
     print(' [Aborted]')
 
