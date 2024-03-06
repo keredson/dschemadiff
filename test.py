@@ -560,7 +560,14 @@ def test_change_column_to_fk_column():
       );
     ''',
     apply=True
-  ) == ["-- NOT IMPLEMENTED: add ForeignKey(from_tbl='b', from_cols=('a_id',), to_tbl='a', to_cols=('id',), on_update='NO ACTION', on_delete='NO ACTION', match='NONE')"]
+  ) == [
+    'PRAGMA foreign_keys=off',
+    'ALTER TABLE "b" RENAME COLUMN "a_id" TO __tmp_col_7f0cc3__',
+    'ALTER TABLE "b" ADD COLUMN a_id int references a(id)',
+    'UPDATE "b" SET "a_id" = "__tmp_col_7f0cc3__"',
+    'ALTER TABLE "b" DROP COLUMN __tmp_col_7f0cc3__',
+    'PRAGMA foreign_keys=on',
+  ]
 
 def test_add_fk_constraint():
   assert diff(
@@ -584,7 +591,14 @@ def test_add_fk_constraint():
       );
     ''',
     apply=True
-  ) == ["-- NOT IMPLEMENTED: add ForeignKey(from_tbl='b', from_cols=('a_id',), to_tbl='a', to_cols=('id',), on_update='NO ACTION', on_delete='NO ACTION', match='NONE')"]
+  ) == [
+    'PRAGMA foreign_keys=off',
+    'ALTER TABLE "b" RENAME COLUMN "a_id" TO __tmp_col_7f0cc3__',
+    'ALTER TABLE "b" ADD COLUMN a_id int references "a"("id")',
+    'UPDATE "b" SET "a_id" = "__tmp_col_7f0cc3__"',
+    'ALTER TABLE "b" DROP COLUMN __tmp_col_7f0cc3__',
+    'PRAGMA foreign_keys=on',
+  ]
 
 def test_drop_fk_constraint():
   assert diff(

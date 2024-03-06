@@ -116,11 +116,30 @@ def diff(fn1, fn2, apply=False):
       cmds.append('-- NOT IMPLEMENTED: drop %s' % repr(fk))
 
     # add foreign keys
-    for fk in sorted(tbl2.fks - tbl1.fks):
-      if (fk.from_tbl, fk.from_cols) in added_columns:
-        # already added the column, which automatically created the FK
-        continue
-      cmds.append('-- NOT IMPLEMENTED: add %s' % repr(fk))
+    fks_to_add = sorted(tbl2.fks - tbl1.fks)
+    # filter out already added columns (which automatically created the FK)
+    fks_to_add = [fk for fk in fks_to_add if (fk.from_tbl, fk.from_cols) not in added_columns]
+    if fks_to_add:
+      cmds.append('PRAGMA foreign_keys=off')
+      for fk in fks_to_add:
+        if len(fk.from_cols) > 1:
+          cmds.append('-- NOT IMPLEMENTED: adding multi-column FK %s' % repr(fk))
+          continue
+        tmp_col_names = ['__tmp_col_%s__' % hashlib.md5(f'"{fk.from_tbl}"."{col_name}"'.encode()).hexdigest()[:6] for col_name in fk.from_cols]
+        for col_name, tmp_col_name in zip(fk.from_cols, tmp_col_names):
+          cmds.append(f'ALTER TABLE "{fk.from_tbl}" RENAME COLUMN "{col_name}" TO {tmp_col_name}')
+          column = tbls2[fk.from_tbl].columns[col_name]
+          cmds_to_add = _add_column(fk.from_tbl, column)
+          if ' references ' not in cmds_to_add[-1].lower():
+            to_cols_combined = ','.join([f'"{cname}"' for cname in fk.to_cols])
+            cmds_to_add[-1] += f' references "{fk.to_tbl}"({to_cols_combined})'
+          cmds += cmds_to_add
+          cmds.append(f'UPDATE "{fk.from_tbl}" SET "{col_name}" = "{tmp_col_name}"')
+            
+        for tmp_col_name in tmp_col_names:
+          cmds.append(f'ALTER TABLE "{tbl_name}" DROP COLUMN {tmp_col_name}')
+      cmds.append('PRAGMA foreign_keys=on')
+      
 
   # add view
   for view_name in sorted(views2.keys() - views1.keys()):
