@@ -1,6 +1,6 @@
 [project]
 name = "schema-evolve"
-version = "0.3.3"
+version = "0.3.4"
 authors = [
   { name="Derek Anderson", email="public@kered.org" },
 ]
@@ -16,6 +16,7 @@ classifiers = [
 dependencies = [
   'python-magic',
   'sqlparse',
+  'darp',
 ]
 
 [project.urls]
