@@ -600,6 +600,32 @@ def test_add_fk_constraint():
     'PRAGMA foreign_keys=on',
   ]
 
+def test_add_multi_column_fk():
+  assert diff(
+    '''
+      create table a (
+        b int, c int
+      );
+      create table x (
+        y int, z int
+      );
+    ''',
+    '''
+      create table a (
+        b int, c int
+      );
+      create table x (
+        y int, z int,
+        foreign key(y,z) references a(b,c)
+      );
+    ''',
+    apply=True
+  ) == [
+    'PRAGMA foreign_keys=off',
+    "-- NOT IMPLEMENTED: adding multi-column FK ForeignKey(from_tbl='x', from_cols=('y', 'z'), to_tbl='a', to_cols=('b', 'c'), on_update='NO ACTION', on_delete='NO ACTION', match='NONE')",
+    'PRAGMA foreign_keys=on',
+  ]
+
 def test_drop_fk_constraint():
   assert diff(
     '''
