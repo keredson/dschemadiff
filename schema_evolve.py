@@ -113,7 +113,14 @@ def diff(fn1, fn2, apply=False):
     
     # drop foreign keys
     for fk in sorted(tbl1.fks - tbl2.fks):
-      cmds.append('-- NOT IMPLEMENTED: drop %s' % repr(fk))
+      tmp_col_names = ['__tmp_col_%s__' % hashlib.md5(f'"{fk.from_tbl}"."{col_name}"'.encode()).hexdigest()[:6] for col_name in fk.from_cols]
+      for col_name, tmp_col_name in zip(fk.from_cols, tmp_col_names):
+        cmds.append(f'ALTER TABLE "{fk.from_tbl}" RENAME COLUMN "{col_name}" TO {tmp_col_name}')
+        column = tbls2[fk.from_tbl].columns[col_name]
+        cmds += _add_column(fk.from_tbl, column)
+        cmds.append(f'UPDATE "{fk.from_tbl}" SET "{col_name}" = "{tmp_col_name}"')
+        for tmp_col_name in tmp_col_names:
+          cmds.append(f'ALTER TABLE "{tbl_name}" DROP COLUMN {tmp_col_name}')
 
     # add foreign keys
     fks_to_add = sorted(tbl2.fks - tbl1.fks)
