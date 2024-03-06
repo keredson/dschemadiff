@@ -1,7 +1,7 @@
-dschemadiff
-===========
+Schema Evolve
+=============
 
-This is a schema diff tool.  It will calculate the schema changes between two databases or `.sql` files, and optionally apply them.
+This is a schema evolution tool.  It will diff schema changes between two databases or `.sql` files, and optionally apply them.
 
 Why?
 ----
@@ -41,13 +41,13 @@ CREATE TABLE tbl (
 Install
 -------
 ```
-$ pip install dschemadiff
+$ pip install schema-evolve
 ```
 
 Usage
 -----
 ```
-$ python -m dschemadiff data/schema1.db data/schema2.sql 
+$ python -m schema_evolve data/schema1.db data/schema2.sql --apply
 Existing Database: data/schema1.db (to modify)
 Target Schema: data/schema2.sql
 Calculated Changes:
@@ -63,51 +63,64 @@ Success!
 ```
 
 ```
-$ python dschemadiff.py 
+$ python schema_evolve.py 
 Schema Diff Tool
-dschemadiff() missing 2 required positional arguments: 'existing_db' and 'schema_sql'
-usage: python dschemadiff.py <existing_db> <schema_sql> [--dry_run <bool>] [--skip_test_run <bool>] [--confirm <bool>] [--quiet <bool>]
+schema_evolve() missing 2 required positional arguments: 'existing_db' and 'schema_sql'
+usage: python schema_evolve.py <existing_db> <schema_sql> [--dry_run] [--skip_dry_run] [--assume-yes] [--quiet]
 ```
 
 
 Testing
 -------
 ```
-$ pytest test.py -vv
+$$ pytest test.py -vv
 ============================================ test session starts ============================================
 platform linux -- Python 3.11.6, pytest-7.4.0, pluggy-1.2.0 -- /usr/bin/python3
 cachedir: .pytest_cache
-collected 27 items                                                                                          
+rootdir: /home/derek/projects/schema_diff
+plugins: requests-mock-1.9.3
+collected 38 items                                                                                          
 
-test.py::test_add_table PASSED                                                                        [  3%]
-test.py::test_drop_table PASSED                                                                       [  7%]
-test.py::test_rename_table PASSED                                                                     [ 11%]
-test.py::test_rename_table2 PASSED                                                                    [ 14%]
-test.py::test_add_column PASSED                                                                       [ 18%]
-test.py::test_add_pk PASSED                                                                           [ 22%]
-test.py::test_add_column_to_renamed_table PASSED                                                      [ 25%]
-test.py::test_delete_column_from_renamed_table PASSED                                                 [ 29%]
-test.py::test_drop_column PASSED                                                                      [ 33%]
-test.py::test_rename_column PASSED                                                                    [ 37%]
-test.py::test_rename_two_columns PASSED                                                               [ 40%]
-test.py::test_rename_table_and_column PASSED                                                          [ 44%]
-test.py::test_rename_weird_spacing PASSED                                                             [ 48%]
-test.py::test_ambiguous_rename_column PASSED                                                          [ 51%]
-test.py::test_ambiguous_rename_table PASSED                                                           [ 55%]
-test.py::test_change_column_def PASSED                                                                [ 59%]
-test.py::test_add_not_null PASSED                                                                     [ 62%]
-test.py::test_add_not_null_with_default PASSED                                                        [ 66%]
-test.py::test_add_view PASSED                                                                         [ 70%]
-test.py::test_drop_view PASSED                                                                        [ 74%]
-test.py::test_drop_table_with_view PASSED                                                             [ 77%]
-test.py::test_add_unique PASSED                                                                       [ 81%]
-test.py::test_add_multi_column_unique PASSED                                                          [ 85%]
-test.py::test_add_column_and_multi_column_unique PASSED                                               [ 88%]
-test.py::test_drop_unique_no_apply PASSED                                                             [ 92%]
-test.py::test_drop_unique PASSED                                                                      [ 96%]
+test.py::test_add_table PASSED                                                                        [  2%]
+test.py::test_drop_table PASSED                                                                       [  5%]
+test.py::test_rename_table PASSED                                                                     [  7%]
+test.py::test_rename_table2 PASSED                                                                    [ 10%]
+test.py::test_add_column PASSED                                                                       [ 13%]
+test.py::test_add_column_to_table_with_pk PASSED                                                      [ 15%]
+test.py::test_add_column_to_multiple_uniques PASSED                                                   [ 18%]
+test.py::test_add_pk PASSED                                                                           [ 21%]
+test.py::test_add_column_to_renamed_table PASSED                                                      [ 23%]
+test.py::test_delete_column_from_renamed_table PASSED                                                 [ 26%]
+test.py::test_drop_column PASSED                                                                      [ 28%]
+test.py::test_rename_column PASSED                                                                    [ 31%]
+test.py::test_rename_two_columns PASSED                                                               [ 34%]
+test.py::test_rename_table_and_column PASSED                                                          [ 36%]
+test.py::test_rename_weird_spacing PASSED                                                             [ 39%]
+test.py::test_ambiguous_rename_column PASSED                                                          [ 42%]
+test.py::test_ambiguous_rename_table PASSED                                                           [ 44%]
+test.py::test_change_column_def PASSED                                                                [ 47%]
+test.py::test_add_not_null PASSED                                                                     [ 50%]
+test.py::test_add_not_null_with_default PASSED                                                        [ 52%]
+test.py::test_add_view PASSED                                                                         [ 55%]
+test.py::test_drop_view PASSED                                                                        [ 57%]
+test.py::test_drop_table_with_view PASSED                                                             [ 60%]
+test.py::test_add_unique PASSED                                                                       [ 63%]
+test.py::test_add_multi_column_unique PASSED                                                          [ 65%]
+test.py::test_add_column_and_multi_column_unique PASSED                                               [ 68%]
+test.py::test_drop_unique_no_apply PASSED                                                             [ 71%]
+test.py::test_drop_unique PASSED                                                                      [ 73%]
+test.py::test_parse_create_table PASSED                                                               [ 76%]
+test.py::test_parse_create_table_with_comment PASSED                                                  [ 78%]
+test.py::test_parse_create_table_with_comments PASSED                                                 [ 81%]
+test.py::test_parse_create_table_with_table_comment PASSED                                            [ 84%]
+test.py::test_parse_create_table_with_table_comment2 PASSED                                           [ 86%]
+test.py::test_parse_create_table_with_inner_comment PASSED                                            [ 89%]
+test.py::test_add_table2 PASSED                                                                       [ 92%]
+test.py::test_json_column PASSED                                                                      [ 94%]
+test.py::test_change_text_to_json PASSED                                                              [ 97%]
 test.py::test_read_files PASSED                                                                       [100%]
 
-============================================ 27 passed in 0.08s =============================================
+============================================ 38 passed in 0.07s =============================================
 ```
 
 

@@ -171,7 +171,7 @@ def _add_column(tbl_name, column):
   return cmds
 
 
-def schema_evolve(existing_db, schema_sql, dry_run:bool=True, skip_dry_run:bool=False, apply:bool=False, confirm:bool=True, quiet:bool=False):
+def schema_evolve(existing_db, schema_sql, dry_run:bool=True, skip_dry_run:bool=False, apply:bool=False, assume_yes:bool=False, quiet:bool=False):
   '''Schema Diff Tool'''
   
   if not quiet:
@@ -188,10 +188,11 @@ def schema_evolve(existing_db, schema_sql, dry_run:bool=True, skip_dry_run:bool=
   
   if dry_run and not skip_dry_run:
     tmp_db = os.path.join(tempfile.mkdtemp(), 'test.db')
-    while True:
-      v = input('Apply changes (dry run @ %s)? (y/n) ' % tmp_db)
-      if v=='n': sys.exit(1)
-      if v=='y': break
+    if not assume_yes:
+      while True:
+        v = input('Apply changes (dry run @ %s)? (y/n) ' % tmp_db)
+        if v=='n': sys.exit(1)
+        if v=='y': break
     if not quiet:
       print('Starting Test Run:', tmp_db)
     shutil.copyfile(existing_db, tmp_db)
@@ -205,10 +206,11 @@ def schema_evolve(existing_db, schema_sql, dry_run:bool=True, skip_dry_run:bool=
     os.remove(tmp_db)
 
   if apply:
-    while True:
-      v = input('Apply changes for real (%s)? (y/n) ' % existing_db)
-      if v=='n': sys.exit(1)
-      if v=='y': break
+    if not assume_yes:
+      while True:
+        v = input('Apply changes for real (%s)? (y/n) ' % existing_db)
+        if v=='n': sys.exit(1)
+        if v=='y': break
     # actual run
       print('Starting Actual Run:', existing_db)
       print('  in:', end=' ', flush=True)

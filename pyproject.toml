@@ -1,6 +1,6 @@
 [project]
 name = "schema-evolve"
-version = "0.3.0"
+version = "0.3.2"
 authors = [
   { name="Derek Anderson", email="public@kered.org" },
 ]
@@ -14,8 +14,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/keredson/dschemadiff"
-Issues = "https://github.com/keredson/dschemadiff/issues"
+Homepage = "https://github.com/keredson/schema-evolve"
+Issues = "https://github.com/keredson/schema-evolve/issues"
 
 [tool.setuptools]
 py-modules = ["schema_evolve"]
