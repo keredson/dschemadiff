@@ -4,9 +4,10 @@ import sqlparse
 import darp
 
 
-Table = collections.namedtuple('Table', 'name,tbl_name,rootpage,sql,columns,akas,unique_constraints')
+Table = collections.namedtuple('Table', 'name,tbl_name,rootpage,sql,columns,akas,unique_constraints,fks')
 Column = collections.namedtuple('Column', 'cid,name,type,notnull,dflt_value,pk,col_def,akas')
 View = collections.namedtuple('View', 'name,tbl_name,rootpage,sql')
+ForeignKey = collections.namedtuple('ForeignKey', 'from_tbl,from_cols,to_tbl,to_cols,on_update,on_delete,match')
 
 AKA_RE = re.compile(r'AKA\[([A-Za-z0-9_, ]*)\]', re.IGNORECASE)
 
@@ -70,6 +71,7 @@ def diff(fn1, fn2, apply=False):
     tbl2 = tbls2[tbl_name]
     
     # add columns
+    added_columns = set()
     for col_name in sorted(tbl2.columns.keys() - tbl1.columns.keys()):
       possible_prev_names = tbl2.columns[col_name].akas & (tbl1.columns.keys() - tbl2.columns.keys())
       if len(possible_prev_names) > 1:
@@ -80,6 +82,7 @@ def diff(fn1, fn2, apply=False):
         del tbl1.columns[old_col_name]
       else:
         cmds += _add_column(tbl_name, tbl2.columns[col_name])
+        added_columns.add((tbl_name, (col_name,)))
 
     # drop unique constraints
     for constraint_name, constraint_columns in tbl1.unique_constraints.items():
@@ -106,6 +109,17 @@ def diff(fn1, fn2, apply=False):
       constraint_name = 'unique_index_%i' % len(tbl2.unique_constraints)
       constraint_columns_sql = ','.join(['"%s"'%s for s in constraint_columns])
       cmds.append(f'CREATE UNIQUE INDEX {constraint_name} ON {tbl_name}({constraint_columns_sql})')
+    
+    # drop foreign keys
+    for fk in sorted(tbl1.fks - tbl2.fks):
+      cmds.append('-- NOT IMPLEMENTED: drop %s' % repr(fk))
+
+    # add foreign keys
+    for fk in sorted(tbl2.fks - tbl1.fks):
+      if (fk.from_tbl, fk.from_cols) in added_columns:
+        # already added the column, which automatically created the FK
+        continue
+      cmds.append('-- NOT IMPLEMENTED: add %s' % repr(fk))
 
   # add view
   for view_name in sorted(views2.keys() - views1.keys()):
@@ -125,7 +139,7 @@ def _get_views(db):
 
 def _get_tables(db):
   rows = db.execute("select name,tbl_name,rootpage,sql from sqlite_schema where type='table';").fetchall()
-  tbls = [Table(*row, {}, set(), {}) for row in rows]
+  tbls = [Table(*row, {}, set(), {}, set()) for row in rows]
   for tbl in tbls:
     tbl_stmt, column_defs, tbl_constraints, tbl_options = _parse_create_table(tbl.sql)
     
@@ -157,6 +171,17 @@ def _get_tables(db):
       constraint_name = row[0]
       constraint_columns = tuple(sorted([row[0] for row in db.execute(f'select name from pragma_index_info("{constraint_name}")').fetchall()]))
       tbl.unique_constraints[constraint_name] = constraint_columns
+
+    for row in db.execute(f'''
+      select id, "table", group_concat("from"), group_concat("to"), on_update, on_delete, match
+      from pragma_foreign_key_list("{tbl.name}")
+      group by id
+    ''').fetchall():
+      # id|from|table|to|on_update|on_delete|match
+      from_cols = tuple(row[2].split(','))
+      to_cols = tuple(row[3].split(','))
+      fk = ForeignKey(tbl.name, from_cols, row[1], to_cols, *row[4:])
+      tbl.fks.add(fk)
 
   return {tbl.name:tbl for tbl in tbls}
   

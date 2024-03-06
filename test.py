@@ -489,6 +489,126 @@ def test_change_text_to_json():
     'ALTER TABLE "tbl" DROP COLUMN __dschemadiff_tmp__',
   ]
 
+def test_add_fk_table():
+  assert diff(
+    '''
+      create table a (
+        id int primary key
+      );
+    ''',
+    '''
+      create table a (
+        id int primary key
+      );
+      create table b (
+        id int primary key,
+        a_id int,
+        foreign key(a_id) references a(id)
+      );
+    ''',
+    apply=True
+  ) == [
+    '''CREATE TABLE b (
+        id int primary key,
+        a_id int,
+        foreign key(a_id) references a(id)
+      )'''
+  ]
+
+def test_add_fk_column():
+  assert diff(
+    '''
+      create table a (
+        id int primary key
+      );
+      create table b (
+        id int primary key
+      );
+    ''',
+    '''
+      create table a (
+        id int primary key
+      );
+      create table b (
+        id int primary key,
+        a_id int references a(id)
+      );
+    ''',
+    apply=True
+  ) == [
+    'ALTER TABLE "b" ADD COLUMN a_id int references a(id)'
+  ]
+
+def test_change_column_to_fk_column():
+  assert diff(
+    '''
+      create table a (
+        id int primary key
+      );
+      create table b (
+        id int primary key,
+        a_id int
+      );
+    ''',
+    '''
+      create table a (
+        id int primary key
+      );
+      create table b (
+        id int primary key,
+        a_id int references a(id)
+      );
+    ''',
+    apply=True
+  ) == ["-- NOT IMPLEMENTED: add ForeignKey(from_tbl='b', from_cols=('a_id',), to_tbl='a', to_cols=('id',), on_update='NO ACTION', on_delete='NO ACTION', match='NONE')"]
+
+def test_add_fk_constraint():
+  assert diff(
+    '''
+      create table a (
+        id int primary key
+      );
+      create table b (
+        id int primary key,
+        a_id int
+      );
+    ''',
+    '''
+      create table a (
+        id int primary key
+      );
+      create table b (
+        id int primary key,
+        a_id int,
+        foreign key(a_id) references a(id)
+      );
+    ''',
+    apply=True
+  ) == ["-- NOT IMPLEMENTED: add ForeignKey(from_tbl='b', from_cols=('a_id',), to_tbl='a', to_cols=('id',), on_update='NO ACTION', on_delete='NO ACTION', match='NONE')"]
+
+def test_drop_fk_constraint():
+  assert diff(
+    '''
+      create table a (
+        id int primary key
+      );
+      create table b (
+        id int primary key,
+        a_id int,
+        foreign key(a_id) references a(id)
+      );
+    ''',
+    '''
+      create table a (
+        id int primary key
+      );
+      create table b (
+        id int primary key,
+        a_id int
+      );
+    ''',
+    apply=True
+  ) == ["-- NOT IMPLEMENTED: drop ForeignKey(from_tbl='b', from_cols=('a_id',), to_tbl='a', to_cols=('id',), on_update='NO ACTION', on_delete='NO ACTION', match='NONE')"]
 
 
 
