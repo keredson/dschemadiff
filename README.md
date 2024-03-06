@@ -1,7 +1,7 @@
 Schema Evolve
 =============
 
-This is a schema evolution tool.  It will diff schema changes between two databases or `.sql` files, and optionally apply them.
+This is a schema evolution tool (currently only for sqlite).  It will diff schema changes between two databases or `.sql` files, and optionally apply them.
 
 Why?
 ----
