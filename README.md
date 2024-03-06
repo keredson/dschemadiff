@@ -69,6 +69,31 @@ schema_evolve() missing 2 required positional arguments: 'existing_db' and 'sche
 usage: python schema_evolve.py <existing_db> <schema_sql> [--dry_run] [--skip_dry_run] [--assume-yes] [--quiet]
 ```
 
+Renaming
+--------
+
+To rename a column, add a special comment on the same line specifying the old name.  Example:
+
+```
+CREATE TABLE users (
+  id INT PRIMARY KEY,
+  ip_address TEXT, -- AKA[ip]
+)
+```
+
+This would rename the column `ip` to `ip_address`.
+
+For tables:
+
+```
+CREATE TABLE clients ( -- AKA[users]
+  id INT PRIMARY KEY,
+  name TEXT
+)
+```
+
+This would rename the `users` table to `clients`.
+
 
 Testing
 -------
