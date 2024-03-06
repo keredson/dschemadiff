@@ -218,10 +218,10 @@ def test_change_column_def():
     'create table tbl (a text)',
     apply=True
   ) == [
-    'ALTER TABLE "tbl" RENAME COLUMN "a" TO __dschemadiff_tmp__',
+    'ALTER TABLE "tbl" RENAME COLUMN "a" TO __tmp_col_2c42ab__',
     'ALTER TABLE "tbl" ADD COLUMN a text',
-    'UPDATE "tbl" SET "a" = CAST(__dschemadiff_tmp__ as TEXT)',
-    'ALTER TABLE "tbl" DROP COLUMN __dschemadiff_tmp__'
+    'UPDATE "tbl" SET "a" = CAST(__tmp_col_2c42ab__ as TEXT)',
+    'ALTER TABLE "tbl" DROP COLUMN __tmp_col_2c42ab__'
   ]
 
 def test_add_not_null():
@@ -232,11 +232,11 @@ def test_add_not_null():
     'create table tbl (a text, b text not null)',
     apply=True
   ) == [
-    'ALTER TABLE "tbl" RENAME COLUMN "b" TO __dschemadiff_tmp__',
+    'ALTER TABLE "tbl" RENAME COLUMN "b" TO __tmp_col_8d901e__',
     '-- WARNING: adding a not null column without a default value will fail if there is any data in the table',
     'ALTER TABLE "tbl" ADD COLUMN b text not null',
-    'UPDATE "tbl" SET "b" = CAST(__dschemadiff_tmp__ as TEXT)',
-    'ALTER TABLE "tbl" DROP COLUMN __dschemadiff_tmp__'
+    'UPDATE "tbl" SET "b" = CAST(__tmp_col_8d901e__ as TEXT)',
+    'ALTER TABLE "tbl" DROP COLUMN __tmp_col_8d901e__'
   ]
 
 def test_add_not_null_with_default():
@@ -248,10 +248,10 @@ def test_add_not_null_with_default():
     'create table tbl (a text, b text default "woot" not null)',
     apply=True
   ) == [
-    'ALTER TABLE "tbl" RENAME COLUMN "b" TO __dschemadiff_tmp__',
+    'ALTER TABLE "tbl" RENAME COLUMN "b" TO __tmp_col_8d901e__',
     'ALTER TABLE "tbl" ADD COLUMN b text default "woot" not null',
-    'UPDATE "tbl" SET "b" = COALESCE(CAST(__dschemadiff_tmp__ as TEXT), "woot")',
-    'ALTER TABLE "tbl" DROP COLUMN __dschemadiff_tmp__'
+    'UPDATE "tbl" SET "b" = COALESCE(CAST(__tmp_col_8d901e__ as TEXT), "woot")',
+    'ALTER TABLE "tbl" DROP COLUMN __tmp_col_8d901e__'
   ]
 
 def test_add_view():
@@ -483,10 +483,10 @@ def test_change_text_to_json():
     'create table tbl (a json)',
     apply=True
   ) == [
-    'ALTER TABLE "tbl" RENAME COLUMN "a" TO __dschemadiff_tmp__',
+    'ALTER TABLE "tbl" RENAME COLUMN "a" TO __tmp_col_2c42ab__',
     'ALTER TABLE "tbl" ADD COLUMN a json',
-    'UPDATE "tbl" SET "a" = CAST(__dschemadiff_tmp__ as json)',
-    'ALTER TABLE "tbl" DROP COLUMN __dschemadiff_tmp__',
+    'UPDATE "tbl" SET "a" = CAST(__tmp_col_2c42ab__ as json)',
+    'ALTER TABLE "tbl" DROP COLUMN __tmp_col_2c42ab__',
   ]
 
 def test_add_fk_table():

@@ -1,4 +1,4 @@
-import collections, os, re, shutil, sqlite3, sys, tempfile, time, uuid
+import collections, hashlib, os, re, shutil, sqlite3, sys, tempfile, time, uuid
 import magic
 import sqlparse
 import darp
@@ -98,11 +98,12 @@ def diff(fn1, fn2, apply=False):
       col1 = tbl1.columns[col_name]
       col2 = tbl2.columns[col_name]
       if col1[1:6] != col2[1:6]:
-        cmds.append(f'ALTER TABLE "{tbl_name}" RENAME COLUMN "{col_name}" TO __dschemadiff_tmp__')
+        tmp_col_name = '__tmp_col_%s__' % hashlib.md5(f'"{tbl_name}"."{col_name}"'.encode()).hexdigest()[:6]
+        cmds.append(f'ALTER TABLE "{tbl_name}" RENAME COLUMN "{col_name}" TO {tmp_col_name}')
         cmds += _add_column(tbl_name, col2)
-        cast_stmt = f'CAST(__dschemadiff_tmp__ as {col2.type})'
+        cast_stmt = f'CAST({tmp_col_name} as {col2.type})'
         cmds.append(f'UPDATE "{tbl_name}" SET "{col_name}" = '+ (f'COALESCE({cast_stmt}, {col2.dflt_value})' if col2.dflt_value else cast_stmt))
-        cmds.append(f'ALTER TABLE "{tbl_name}" DROP COLUMN __dschemadiff_tmp__')
+        cmds.append(f'ALTER TABLE "{tbl_name}" DROP COLUMN {tmp_col_name}')
     
     # add unique constraints
     for constraint_columns in sorted(set(tbl2.unique_constraints.values()) - set(tbl1.unique_constraints.values())):
